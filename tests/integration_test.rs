@@ -1,5 +1,3 @@
-extern crate arc_trait;
-
 #[test]
 fn test_auto_arc_trait() {
     let t = trybuild::TestCases::new();

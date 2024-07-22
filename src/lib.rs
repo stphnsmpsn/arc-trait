@@ -1,8 +1,6 @@
-extern crate proc_macro;
-
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, ItemTrait, TraitItem};
+use syn::{parse_macro_input, ItemTrait, TraitItem, TraitItemFn};
 
 #[proc_macro_attribute]
 pub fn arc_trait(_attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -16,20 +14,24 @@ pub fn arc_trait(_attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     // Collect all methods in the trait
-    let methods: Vec<_> = input.items.iter().filter_map(|item| {
-        if let TraitItem::Fn(method) = item {
-            Some(method)
-        } else {
-            None
-        }
-    }).collect();
+    let methods: Vec<TraitItemFn> = input
+        .items
+        .iter()
+        .filter_map(|item| {
+            if let TraitItem::Fn(method) = item {
+                Some(method.clone())
+            } else {
+                None
+            }
+        })
+        .collect();
 
     // Generate implementations for Arc<T>
     let impls = methods.iter().map(|method| {
-
         let name = &method.sig.ident;
         let inputs = &method.sig.inputs;
         let output = &method.sig.output;
+        let attrs = &method.attrs;
 
         let call_args = inputs.iter().skip(1).map(|arg| {
             if let syn::FnArg::Typed(pat_type) = arg {
@@ -40,18 +42,39 @@ pub fn arc_trait(_attr: TokenStream, item: TokenStream) -> TokenStream {
             }
         });
 
-        quote! {
-            fn #name (#inputs) #output {
-                self.as_ref().#name(#(#call_args),*)
+        if method.sig.asyncness.is_some() {
+            quote! {
+                #(#attrs)*
+                async fn #name (#inputs) #output {
+                    self.as_ref().#name(#(#call_args),*).await
+                }
+            }
+        } else {
+            quote! {
+                #(#attrs)*
+                fn #name (#inputs) #output {
+                    self.as_ref().#name(#(#call_args),*)
+                }
             }
         }
     });
 
-    let expanded = quote! {
-        #trait_def
+    let expanded = if methods.iter().any(|method| method.sig.asyncness.is_some()) {
+        quote! {
+            #trait_def
 
-        impl<T: #trait_name> #trait_name for std::sync::Arc<T> {
-            #(#impls)*
+            #[async_trait::async_trait]
+            impl<T: #trait_name + Send + Sync> #trait_name for std::sync::Arc<T> {
+                #(#impls)*
+            }
+        }
+    } else {
+        quote! {
+            #trait_def
+
+            impl<T: #trait_name> #trait_name for std::sync::Arc<T> {
+                #(#impls)*
+            }
         }
     };
 

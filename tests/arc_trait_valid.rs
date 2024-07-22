@@ -1,21 +1,44 @@
-extern crate arc_trait;
 use arc_trait::arc_trait;
-use std::sync::Arc;
+use async_trait::async_trait;
+use std::{sync::Arc, time::Duration};
+
+#[arc_trait]
+#[async_trait]
+trait ExampleAsyncTrait {
+    async fn get_value_async(&self) -> i32;
+}
 
 #[arc_trait]
 trait ExampleTrait {
-    fn example_method(&self, value: i32) -> i32;
+    fn get_value(&self) -> i32;
 }
 
-struct Example;
+#[derive(Default)]
+struct Example {
+    pub value: i32,
+}
 
-impl ExampleTrait for Example {
-    fn example_method(&self, value: i32) -> i32 {
-        value + 1
+#[async_trait]
+impl ExampleAsyncTrait for Example {
+    async fn get_value_async(&self) -> i32 {
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        self.value
     }
 }
 
-fn main() {
-    let example = Arc::new(Example);
-    assert_eq!(example.example_method(1), 2);
+impl ExampleTrait for Example {
+    fn get_value(&self) -> i32 {
+        self.value
+    }
+}
+
+#[tokio::main]
+async fn main() {
+    let example = Arc::new(Example::default());
+
+    // Sync methods
+    assert_eq!(example.get_value(), 0);
+
+    // Async methods
+    assert_eq!(example.get_value_async().await, 0);
 }
