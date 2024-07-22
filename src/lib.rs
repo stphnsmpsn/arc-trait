@@ -1,3 +1,5 @@
+extern crate proc_macro;
+
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, ItemTrait, TraitItem, TraitItemFn};
@@ -14,24 +16,23 @@ pub fn arc_trait(_attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     // Collect all methods in the trait
-    let methods: Vec<TraitItemFn> = input
-        .items
-        .iter()
-        .filter_map(|item| {
-            if let TraitItem::Fn(method) = item {
-                Some(method.clone())
-            } else {
-                None
-            }
-        })
-        .collect();
+    let methods: Vec<TraitItemFn> = input.items.iter().filter_map(|item| {
+        if let TraitItem::Fn(method) = item {
+            Some(method.clone())
+        } else {
+            None
+        }
+    }).collect();
 
     // Generate implementations for Arc<T>
     let impls = methods.iter().map(|method| {
         let name = &method.sig.ident;
         let inputs = &method.sig.inputs;
         let output = &method.sig.output;
+        let generics = &method.sig.generics;
+        let where_clause = &method.sig.generics.where_clause;
         let attrs = &method.attrs;
+        let is_async = method.sig.asyncness.is_some();
 
         let call_args = inputs.iter().skip(1).map(|arg| {
             if let syn::FnArg::Typed(pat_type) = arg {
@@ -42,17 +43,17 @@ pub fn arc_trait(_attr: TokenStream, item: TokenStream) -> TokenStream {
             }
         });
 
-        if method.sig.asyncness.is_some() {
+        if is_async {
             quote! {
                 #(#attrs)*
-                async fn #name (#inputs) #output {
+                async fn #name #generics (#inputs) #output #where_clause {
                     self.as_ref().#name(#(#call_args),*).await
                 }
             }
         } else {
             quote! {
                 #(#attrs)*
-                fn #name (#inputs) #output {
+                fn #name #generics (#inputs) #output #where_clause {
                     self.as_ref().#name(#(#call_args),*)
                 }
             }

@@ -1,11 +1,16 @@
+extern crate arc_trait;
+extern crate async_trait;
 use arc_trait::arc_trait;
 use async_trait::async_trait;
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
+use std::time::Duration;
 
 #[arc_trait]
 #[async_trait]
 trait ExampleAsyncTrait {
-    async fn get_value_async(&self) -> i32;
+    async fn complex_signature<'a, U>(&self, entities: &'a [U], value: i32) -> i32
+    where
+        U: Into<String> + Send + Sync;
 }
 
 #[arc_trait]
@@ -20,9 +25,12 @@ struct Example {
 
 #[async_trait]
 impl ExampleAsyncTrait for Example {
-    async fn get_value_async(&self) -> i32 {
+    async fn complex_signature<'a, U>(&self, _entities: &'a [U], value: i32) -> i32
+    where
+        U: Into<String> + Send + Sync
+    {
         tokio::time::sleep(Duration::from_millis(10)).await;
-        self.value
+        self.value + value
     }
 }
 
@@ -40,5 +48,6 @@ async fn main() {
     assert_eq!(example.get_value(), 0);
 
     // Async methods
-    assert_eq!(example.get_value_async().await, 0);
+    let entities: Vec<String> = vec!["entity1".to_string(), "entity2".to_string()];
+    assert_eq!(example.complex_signature(entities.as_slice(), 1).await, 1);
 }
