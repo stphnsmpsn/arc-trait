@@ -1,0 +1,21 @@
+[package]
+name = "arc-trait"
+authors = ["Steve Sampson <crates.frostlike275@simplelogin.com>"]
+description = "Automagically implement any trait for Arc<T>"
+readme = "README.md"
+license = "MIT"
+license-file = "LICENSE"
+keywords = ["utilities", "macros", "arc", "trait"]
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = { version = "2.0.71", features = ["full"] }
+
+[dev-dependencies]
+trybuild = "1.0.97"
+
+[lib]
+proc-macro = true
